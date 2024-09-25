@@ -74,10 +74,11 @@
                 console.error("Error accessing camera: ", error);
             });
 
-        socket.on('update_frame', function(data) {
-            const videoTexture = url(data:image/jpeg;base64,${data.frame});
-            document.querySelector('#video-feed').setAttribute('material', src: ${videoTexture});
-        });
+            socket.on('update_frame', function(data) {
+                const videoTexture = `data:image/jpeg;base64,${data.frame}`;
+                document.querySelector('#video-feed').setAttribute('material', 'src', videoTexture);
+            });
+
 
         function getAverageZ() {
             if (zValues.length === 0) return 0;
