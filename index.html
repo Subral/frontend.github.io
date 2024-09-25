@@ -103,7 +103,8 @@
             }
 
             lastPosition = { x, y, z };
-            box.setAttribute('position', ${x} ${y} ${z});
+            box.setAttribute('position', `${x} ${y} ${z}`);
+
             box.setAttribute('visible', true);
 
             if (data.x !== null && data.y !== null && data.z !== null) {
