@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR Object Tracking with A-Frame</title>
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+    <style>
+        html, body {
+            margin: 0;
+            height: 100%;
+            overflow: hidden;
+        }
+        a-scene {
+            width: 100vw;
+            height: 100vh;
+        }
+        #video-feed {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 50%;
+            height: 50%;
+        }
+    </style>
+</head>
+<body>
+    <a-scene>
+        <a-camera fov="60" look-controls="enabled: false"></a-camera>
+        <a-light type="ambient" color="#ffffff"></a-light>
+        <a-light type="directional" position="-1 2 1" intensity="1" cast-shadow="true" shadow-map-width="1024" shadow-map-height="1024" shadow-camera-left="-5" shadow-camera-right="5" shadow-camera-bottom="-5" shadow-camera-top="5" color="#ffffff"></a-light>
+
+        <a-box id="tracked-box" visible="false" position="0 0 0" rotation="0 45 0" scale="1.5 1.5 1.5" material="src: #myImage; color: #FFF"></a-box>    
+        <a-plane id="video-feed" width="16" height="9" position="0 3 -5" material="src: #video-texture;"></a-plane>
+
+        <a-assets>
+            <img id="myImage" src="./WebD_texture.jpg"/>
+        </a-assets>
+    </a-scene>
+
+    <script>
+        const socket = io('http://3.110.175.219:5000');
+        const videoElement = document.createElement('video');
+        const box = document.getElementById('tracked-box');
+
+
+        let lastPosition = { x: 0, y: 0, z: 0 };
+        let lastUpdateTime = Date.now();
+        let zValues = [];
+        const zWindowMin = -5;  
+        const zWindowMax = 0;   
+
+
+        // Request camera access
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                videoElement.srcObject = stream;
+                videoElement.play();
+
+                // Send video frames to the server
+                setInterval(() => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 640; // Set the desired width
+                    canvas.height = 480; // Set the desired height
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+                    const frame = canvas.toDataURL('image/jpeg');
+
+                    socket.emit('video_frame', { frame });
+                }, 100); // Send frames every 100 ms
+            })
+            .catch(error => {
+                console.error("Error accessing camera: ", error);
+            });
+
+        socket.on('update_frame', function(data) {
+            const videoTexture = url(data:image/jpeg;base64,${data.frame});
+            document.querySelector('#video-feed').setAttribute('material', src: ${videoTexture});
+        });
+
+        function getAverageZ() {
+            if (zValues.length === 0) return 0;
+            return zValues.reduce((a, b) => a + b, 0) / zValues.length;
+        }
+
+        socket.on('update_coordinates', function(data) {
+            const frameWidth = 640;
+            const frameHeight = 480;
+
+            const x = data.x !== null ? (data.x / frameWidth) * 10 - 5 : lastPosition.x;
+            const y = data.y !== null ? -(data.y / frameHeight) * 10 + 8 : lastPosition.y;
+            let z = data.z !== null ? (data.z * -1) / 10 : lastPosition.z;
+
+            if (z < zWindowMin || z > zWindowMax) {
+                z = getAverageZ();
+            } else {
+                zValues.push(z);
+                if (zValues.length > 5) {
+                    zValues.shift();
+                }
+            }
+
+            lastPosition = { x, y, z };
+            box.setAttribute('position', ${x} ${y} ${z});
+            box.setAttribute('visible', true);
+
+            if (data.x !== null && data.y !== null && data.z !== null) {
+                lastUpdateTime = Date.now();  
+            }
+
+        });
+
+        function checkCubeVisibility() {
+            const timeSinceLastUpdate = Date.now() - lastUpdateTime;
+            if (timeSinceLastUpdate > 150) { 
+                box.setAttribute('visible', false);
+                lastPosition = { x: null, y: null, z: null };
+            }
+        }
+
+        setInterval(checkCubeVisibility, 500);
+
+        window.onload = function() {
+            socket.emit('start_stream');
+        };
+    </script>
+</body>
+</html>
